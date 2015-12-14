@@ -61,7 +61,8 @@ type Client struct {
 
 	// serf is the Serf cluster maintained inside the DC
 	// which contains all the DC nodes
-	serf *serf.Serf
+	serf     *serf.Serf
+	resolver *NodeNameIPResolver
 
 	shutdown     bool
 	shutdownCh   chan struct{}
@@ -103,11 +104,13 @@ func NewClient(config *Config) (*Client, error) {
 	// Create server
 	c := &Client{
 		config:     config,
-		connPool:   NewPool(config.LogOutput, clientRPCCache, clientMaxStreams, tlsWrap),
 		eventCh:    make(chan serf.Event, 256),
 		logger:     logger,
 		shutdownCh: make(chan struct{}),
 	}
+
+	c.resolver = &NodeNameIPResolver{serf: &c.serf}
+	c.connPool = NewPool(config.LogOutput, clientRPCCache, clientMaxStreams, tlsWrap, c.resolver)
 
 	// Start the Serf listeners to prevent a deadlock
 	go c.lanEventHandler()
@@ -350,6 +353,7 @@ func (c *Client) RPC(method string, args interface{}, reply interface{}) error {
 
 	// Forward to remote Consul
 TRY_RPC:
+
 	if err := c.connPool.RPC(c.config.Datacenter, server.Addr, server.Version, method, args, reply); err != nil {
 		c.lastServer = nil
 		c.lastRPCTime = time.Time{}

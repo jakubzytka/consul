@@ -154,6 +154,8 @@ type ConnPool struct {
 	// Used to indicate the pool is shutdown
 	shutdown   bool
 	shutdownCh chan struct{}
+
+	resolver *NodeNameIPResolver
 }
 
 // NewPool is used to make a new connection pool
@@ -161,7 +163,13 @@ type ConnPool struct {
 // Set maxTime to 0 to disable reaping. maxStreams is used to control
 // the number of idle streams allowed.
 // If TLS settings are provided outgoing connections use TLS.
-func NewPool(logOutput io.Writer, maxTime time.Duration, maxStreams int, tlsWrap tlsutil.DCWrapper) *ConnPool {
+func NewPool(
+	logOutput io.Writer,
+	maxTime time.Duration,
+	maxStreams int,
+	tlsWrap tlsutil.DCWrapper,
+	resolver *NodeNameIPResolver) *ConnPool {
+
 	pool := &ConnPool{
 		logOutput:  logOutput,
 		maxTime:    maxTime,
@@ -170,6 +178,7 @@ func NewPool(logOutput io.Writer, maxTime time.Duration, maxStreams int, tlsWrap
 		limiter:    make(map[string]chan struct{}),
 		tlsWrap:    tlsWrap,
 		shutdownCh: make(chan struct{}),
+		resolver:   resolver,
 	}
 	if maxTime > 0 {
 		go pool.reap()
@@ -263,7 +272,8 @@ func (p *ConnPool) acquire(dc string, addr net.Addr, version int) (*Conn, error)
 // getNewConn is used to return a new connection
 func (p *ConnPool) getNewConn(dc string, addr net.Addr, version int) (*Conn, error) {
 	// Try to dial the conn
-	conn, err := net.DialTimeout("tcp", addr.String(), 10*time.Second)
+	tcpAddr := p.resolver.ResolveAddr(addr)
+	conn, err := net.DialTimeout("tcp", tcpAddr.String(), 10*time.Second)
 	if err != nil {
 		return nil, err
 	}

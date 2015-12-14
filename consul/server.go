@@ -130,7 +130,8 @@ type Server struct {
 
 	// serfLAN is the Serf cluster maintained inside the DC
 	// which contains all the DC nodes
-	serfLAN *serf.Serf
+	serfLAN  *serf.Serf
+	resolver *NodeNameIPResolver
 
 	// serfWAN is the Serf cluster maintained between DC's
 	// which SHOULD only consist of Consul servers
@@ -212,7 +213,6 @@ func NewServer(config *Config) (*Server, error) {
 	// Create server
 	s := &Server{
 		config:        config,
-		connPool:      NewPool(config.LogOutput, serverRPCCache, serverMaxStreams, tlsWrap),
 		eventChLAN:    make(chan serf.Event, 256),
 		eventChWAN:    make(chan serf.Event, 256),
 		localConsuls:  make(map[string]*serverParts),
@@ -224,6 +224,9 @@ func NewServer(config *Config) (*Server, error) {
 		tombstoneGC:   gc,
 		shutdownCh:    make(chan struct{}),
 	}
+
+	s.resolver = &NodeNameIPResolver{serf: &s.serfLAN}
+	s.connPool = NewPool(config.LogOutput, serverRPCCache, serverMaxStreams, tlsWrap, s.resolver)
 
 	// Initialize the authoritative ACL cache
 	s.aclAuthCache, err = acl.NewCache(aclCacheSize, s.aclFault)
@@ -452,7 +455,7 @@ func (s *Server) setupRPC(tlsWrap tlsutil.DCWrapper) error {
 	// Provide a DC specific wrapper. Raft replication is only
 	// ever done in the same datacenter, so we can provide it as a constant.
 	wrapper := tlsutil.SpecificDC(s.config.Datacenter, tlsWrap)
-	s.raftLayer = NewRaftLayer(advertise, wrapper)
+	s.raftLayer = NewRaftLayer(s.config.NodeName, uint16(addr.Port), wrapper, s.resolver)
 	return nil
 }
 

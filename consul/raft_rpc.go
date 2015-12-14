@@ -7,13 +7,16 @@ import (
 	"time"
 
 	"github.com/hashicorp/consul/tlsutil"
+	"log"
 )
 
 // RaftLayer implements the raft.StreamLayer interface,
 // so that we can use a single RPC layer for Raft and Consul
 type RaftLayer struct {
 	// Addr is the listener address to return
-	addr net.Addr
+	addr     net.Addr
+	logger   *log.Logger
+	resolver *NodeNameIPResolver
 
 	// connCh is used to accept connections
 	connCh chan net.Conn
@@ -30,12 +33,13 @@ type RaftLayer struct {
 // NewRaftLayer is used to initialize a new RaftLayer which can
 // be used as a StreamLayer for Raft. If a tlsConfig is provided,
 // then the connection will use TLS.
-func NewRaftLayer(addr net.Addr, tlsWrap tlsutil.Wrapper) *RaftLayer {
+func NewRaftLayer(nodeName string, port uint16, tlsWrap tlsutil.Wrapper, resolver *NodeNameIPResolver) *RaftLayer {
 	layer := &RaftLayer{
-		addr:    addr,
-		connCh:  make(chan net.Conn),
-		tlsWrap: tlsWrap,
-		closeCh: make(chan struct{}),
+		addr:     NodeNameAddress{nodeName, port},
+		resolver: resolver,
+		connCh:   make(chan net.Conn),
+		tlsWrap:  tlsWrap,
+		closeCh:  make(chan struct{}),
 	}
 	return layer
 }
@@ -81,7 +85,9 @@ func (l *RaftLayer) Addr() net.Addr {
 
 // Dial is used to create a new outgoing connection
 func (l *RaftLayer) Dial(address string, timeout time.Duration) (net.Conn, error) {
-	conn, err := net.DialTimeout("tcp", address, timeout)
+	tcpAddress := l.resolver.ResolveString(address)
+
+	conn, err := net.DialTimeout("tcp", tcpAddress, timeout)
 	if err != nil {
 		return nil, err
 	}

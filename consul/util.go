@@ -156,7 +156,7 @@ func isConsulServer(m serf.Member) (bool, *serverParts) {
 		return false, nil
 	}
 
-	addr := &net.TCPAddr{IP: m.Addr, Port: port}
+	addr := NodeNameAddress{nodeName: m.Name, port: uint16(port)}
 
 	parts := &serverParts{
 		Name:       m.Name,

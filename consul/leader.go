@@ -2,7 +2,6 @@ package consul
 
 import (
 	"fmt"
-	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -542,7 +541,7 @@ func (s *Server) joinConsulServer(m serf.Member, parts *serverParts) error {
 	}
 
 	// Attempt to add as a peer
-	var addr net.Addr = &net.TCPAddr{IP: m.Addr, Port: parts.Port}
+	addr := &NodeNameAddress{nodeName: m.Name, port: uint16(parts.Port)}
 	future := s.raft.AddPeer(addr.String())
 	if err := future.Error(); err != nil && err != raft.ErrKnownPeer {
 		s.logger.Printf("[ERR] consul: failed to add raft peer: %v", err)
@@ -554,7 +553,7 @@ func (s *Server) joinConsulServer(m serf.Member, parts *serverParts) error {
 // removeConsulServer is used to try to remove a consul server that has left
 func (s *Server) removeConsulServer(m serf.Member, port int) error {
 	// Attempt to remove as peer
-	peer := &net.TCPAddr{IP: m.Addr, Port: port}
+	peer := &NodeNameAddress{nodeName: m.Name, port: uint16(port)}
 	future := s.raft.RemovePeer(peer.String())
 	if err := future.Error(); err != nil && err != raft.ErrUnknownPeer {
 		s.logger.Printf("[ERR] consul: failed to remove raft peer '%v': %v",

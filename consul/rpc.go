@@ -218,6 +218,7 @@ func (s *Server) forwardLeader(method string, args interface{}, reply interface{
 	if server == nil {
 		return structs.ErrNoLeader
 	}
+
 	return s.connPool.RPC(s.config.Datacenter, server.Addr, server.Version, method, args, reply)
 }
 

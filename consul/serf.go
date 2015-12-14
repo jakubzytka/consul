@@ -1,7 +1,6 @@
 package consul
 
 import (
-	"net"
 	"strings"
 
 	"github.com/hashicorp/serf/serf"
@@ -225,7 +224,7 @@ func (s *Server) maybeBootstrap() {
 			s.logger.Printf("[ERR] consul: Member %v has bootstrap mode. Expect disabled.", member)
 			return
 		}
-		addr := &net.TCPAddr{IP: member.Addr, Port: p.Port}
+		addr := &NodeNameAddress{nodeName: member.Name, port: uint16(p.Port)}
 		addrs = append(addrs, addr.String())
 	}
 
